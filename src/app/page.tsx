@@ -1,11 +1,15 @@
-import type { Metadata } from 'next';
-import Expertise from '@/components/Expertise';
+import Intro from "@/components/Intro";
+import ProjectsSection from "@/components/Projects";
+import SkillsSection from "@/components/Skills";
+import TimelineSection from "@/components/Timeline";
+import ContactSection from "@/components/Contact";
 
-export const metadata: Metadata = {
-  title: 'Kompetensi — Rangga Egha Permana',
-  description: 'Kedalaman kompetensi: keamanan web, pentest/Kali Linux, performa Laravel & Next.js, serta ops.',
-};
-
-export default function Page() {
-  return <Expertise />;
+export default function Home() {
+  return (<div className="min-h-screen">
+    <Intro/>
+    <ProjectsSection/>
+    <SkillsSection/>
+    <TimelineSection/>
+    <ContactSection/>
+  </div>);
 }
