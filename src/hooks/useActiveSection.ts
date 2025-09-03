@@ -4,10 +4,8 @@
 import { useEffect, useRef, useState } from "react";
 
 /**
- * Melacak ID section yang dominan di viewport (untuk highlight nav anchor).
- * Aman dipakai di halaman apa pun:
- *  - Ketika enabled=false (bukan di "/") → state di-reset & tidak observe apa pun.
- *  - Ketika kembali ke "/" → re-init, nunggu elemen section muncul dulu.
+ * Melacak ID section dominan di viewport (untuk highlight nav anchor).
+ * Reset otomatis saat bukan di "/" agar highlight tidak nyangkut.
  */
 export function useActiveSection(
   ids: string[],
@@ -20,7 +18,6 @@ export function useActiveSection(
   const rafRef = useRef<number | null>(null);
   const obsRef = useRef<IntersectionObserver | null>(null);
 
-  // Reset saat tidak aktif (mis. pindah ke /kompetensi)
   useEffect(() => {
     if (!enabled) {
       setActive(null);
@@ -36,27 +33,24 @@ export function useActiveSection(
 
     let cancelled = false;
 
-    const ensureSectionsAndObserve = () => {
+    const boot = () => {
       if (cancelled) return;
 
       const sections = ids
         .map((id) => document.getElementById(id))
         .filter((el): el is HTMLElement => !!el);
 
-      // Tunggu sampai elemen section ter-mount (navigasi antar halaman bisa bikin timing mepet)
       if (!sections.length) {
-        rafRef.current = requestAnimationFrame(ensureSectionsAndObserve);
+        rafRef.current = requestAnimationFrame(boot);
         return;
       }
 
-      // Mark awal sebagai 'home' bila ada (hindari highlight nyangkut)
       if (ids.includes("home") && document.getElementById("home")) {
         setActive("home");
       }
 
       const obs = new IntersectionObserver(
         (entries) => {
-          // Ambil yang paling dominan
           const visible = entries
             .filter((e) => e.isIntersecting)
             .sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
@@ -68,7 +62,6 @@ export function useActiveSection(
       obsRef.current = obs;
       sections.forEach((el) => obs.observe(el));
 
-      // Hash click → set aktif segera setelah scroll
       const onHash = () => {
         const id = window.location.hash.slice(1);
         if (id && ids.includes(id)) {
@@ -78,20 +71,16 @@ export function useActiveSection(
       };
       window.addEventListener("hashchange", onHash);
 
-      // Cleanup
       return () => {
         window.removeEventListener("hashchange", onHash);
       };
     };
 
-    const cleanup = ensureSectionsAndObserve();
+    const cleanup = boot();
 
     return () => {
       cancelled = true;
-      if (rafRef.current) {
-        cancelAnimationFrame(rafRef.current);
-        rafRef.current = null;
-      }
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
       if (obsRef.current) {
         obsRef.current.disconnect();
         obsRef.current = null;

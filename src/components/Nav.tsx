@@ -25,7 +25,7 @@ const navLinks: NavItem[] = [
   }, {
     href: "/kompetensi",
     label: "Kompetensi"
-  }, { // halaman terpisah
+  }, {
     href: "/#experience",
     label: "Experience"
   }, {
@@ -44,7 +44,7 @@ export default function Nav() {
   const pathname = usePathname();
   const [hovered, setHovered] = useState < string | null > (null);
 
-  // Track section aktif hanya ketika berada di halaman "/"
+  // Aktifkan tracking section hanya di halaman "/"
   const activeSection = useActiveSection([
     "home", "projects", "skills", "experience", "contact"
   ], {
@@ -52,7 +52,6 @@ export default function Nav() {
     rootMargin: "-88px 0px -55% 0px"
   });
 
-  // Tentukan item aktif (untuk "gel-pill" menetap)
   const isActive = (href : string) => {
     if (href === "/") 
       return pathname === "/" && (!activeSection || activeSection === "home");
@@ -63,7 +62,6 @@ export default function Nav() {
     return pathname === href || (href !== "/" && pathname.startsWith(href));
   };
 
-  // Kelas link (desain teks tetap seperti sebelumnya)
   const linkBase = "relative z-10 rounded-xl px-3 py-2 text-slate-700 hover:text-slate-900 dark:text-slate-300 dark:hover:text-slate-100";
   const liBase = "relative";
   const showPill = (href : string, label : string) => hovered
@@ -72,10 +70,9 @@ export default function Nav() {
 
   return (<header className="sticky top-0 z-40 w-full">
     <div className="mx-auto max-w-6xl px-4 pt-4">
-      {/* Shell kaca utama */}
-      <div className="nav-glass rounded-2xl border border-slate-200/60 bg-white/30 backdrop-blur supports-[backdrop-filter]:bg-white/30 dark:border-slate-800/60 dark:bg-slate-900/30">
+      {/* Shell kaca */}
+      <div className="nav-glass rounded-2xl border border-slate-200/60 bg-white/25 backdrop-blur-xl supports-[backdrop-filter]:bg-white/25 dark:border-slate-800/60 dark:bg-slate-900/25">
         <nav className="flex items-center justify-between px-4 py-3">
-          {/* Logo kecil (tetap) */}
           <Link href="/" className="text-sm font-semibold tracking-tight">
             <span className="rounded-lg bg-slate-900 px-2 py-1 text-white dark:bg-white dark:text-slate-900">
               RE
@@ -85,16 +82,16 @@ export default function Nav() {
           <ul className="relative flex items-center gap-2 text-sm">
             {
               navLinks.map((l) => (<li key={l.label} className={liBase} onMouseEnter={() => setHovered(l.label)} onMouseLeave={() => setHovered(null)}>
-                {/* Gel pill: muncul di item yang sedang di-hover, kalau tidak ada hover → item aktif */}
+                {/* Pill kaca cair: saat hover; kalau tidak ada hover → item aktif */
+                }
                 {
                   showPill(l.href, l.label) && (<m.span layoutId="nav-gel-pill" transition={{
                       type: "spring",
-                      stiffness: 420,
-                      damping: 34,
-                      mass: 0.6
+                      stiffness: 520,
+                      damping: 28,
+                      mass: 0.55
                     }} className="gel-pill absolute inset-0 -z-0"/>)
                 }
-
                 <Link href={l.href} className={linkBase}>
                   {l.label}
                 </Link>
@@ -105,73 +102,73 @@ export default function Nav() {
       </div>
     </div>
 
-    {/* Styled-JSX (global) untuk efek liquid glass + chromatic edge */}
+    {/* Efek liquid-glass */}
     <style jsx="jsx" global="global">
       {
-        `
-        /* Shell kaca membulat dengan edge 'liquid' halus */
-        .nav-glass {
+        ` .nav-glass {
           position: relative;
           overflow: hidden;
-          box-shadow: inset 0 0 0.5px rgba(255, 255, 255, 0.6), 0 10px 30px rgba(2, 6, 23, 0.06);
+          /* bening + depth */
+          backdrop-filter: blur(18px) saturate(170%) contrast(108%) brightness(112%);
+          -webkit-backdrop-filter: blur(18px) saturate(170%) contrast(108%) brightness(112%);
+          box-shadow: inset 0 0 0.7px rgba(255, 255, 255, 0.65), inset 0 -12px 26px rgba(2, 6, 23, 0.06), 0 12px 36px rgba(2, 6, 23, 0.08);
         }
+        /* glare & rim pelangi tipis seperti referensi */
         .nav-glass::before {
-          /* highlight diagonal + glare tipis */
           content: "";
           position: absolute;
-          inset: -20% -10%;
-          background: radial-gradient(120% 100% at 10% -10%, rgba(255, 255, 255, 0.35), transparent 55%), radial-gradient(90% 80% at 100% 0%, rgba(255, 255, 255, 0.14), transparent 60%);
+          inset: -22% -10%;
+          background: radial-gradient(140% 120% at 12% -10%, rgba(255, 255, 255, 0.45), transparent 55%), radial-gradient(90% 70% at 95% 0%, rgba(255, 255, 255, 0.18), transparent 60%);
           pointer-events: none;
           mix-blend-mode: screen;
         }
         .nav-glass::after {
-          /* Chromatic aberration very subtle di sisi atas/bawah (mirip contoh 1) */
           content: "";
           position: absolute;
           inset: 0;
-          background: linear-gradient(0deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0)), conic-gradient(from 180deg at 50% 0%, rgba(255, 115, 0, 0.18), rgba(56, 189, 248, 0.18), rgba(99, 102, 241, 0.2), rgba(16, 185, 129, 0.16), rgba(255, 115, 0, 0.18));
+          border-radius: 1rem;
+          padding: 1px;
+          background: linear-gradient(0deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.02)), conic-gradient(from 180deg at 50% 0%, rgba(255, 115, 0, 0.22), rgba(56, 189, 248, 0.22), rgba(99, 102, 241, 0.24), rgba(16, 185, 129, 0.2), rgba(255, 115, 0, 0.22));
           -webkit-mask: linear-gradient(#000, #000) content-box, linear-gradient(#000, #000);
           -webkit-mask-composite: xor;
           mask-composite: exclude;
-          padding: 1px;
-          /* tipis seperti border prisma */
-          border-radius: 1rem;
           pointer-events: none;
-          opacity: 0.55;
-          filter: blur(0.3px) saturate(120%);
+          opacity: 0.42;
+          /* lebih tipis supaya 'bening' */
+          filter: saturate(120%) blur(0.25px);
         }
 
-        /* Gel pill (hover/aktif) — kaca cair yang memantul */
+        /* GEL PILL (hover/aktif) — jernih + rim pelangi */
         .gel-pill {
-          border-radius: 0.75rem;
-          background: linear-gradient(180deg, rgba(255, 255, 255, 0.55), rgba(255, 255, 255, 0.18)), radial-gradient(120% 140% at 10% 10%, rgba(255, 255, 255, 0.65), transparent 45%), radial-gradient(120% 140% at 90% 10%, rgba(255, 255, 255, 0.35), transparent 50%);
-          backdrop-filter: blur(14px) saturate(175%);
-          -webkit-backdrop-filter: blur(14px) saturate(175%);
-          box-shadow: inset 0 0 1px rgba(255, 255, 255, 0.7), inset 0 -8px 18px rgba(2, 6, 23, 0.06), 0 6px 22px rgba(2, 6, 23, 0.08);
+          border-radius: 0.8rem;
+          background: linear-gradient(180deg, rgba(255, 255, 255, 0.65), rgba(255, 255, 255, 0.18)), radial-gradient(140% 160% at 10% 8%, rgba(255, 255, 255, 0.75), transparent 46%), radial-gradient(120% 140% at 92% 12%, rgba(255, 255, 255, 0.38), transparent 54%);
+          backdrop-filter: blur(16px) saturate(180%) contrast(110%) brightness(112%);
+          -webkit-backdrop-filter: blur(16px) saturate(180%) contrast(110%) brightness(112%);
+          box-shadow: inset 0 0 1px rgba(255, 255, 255, 0.8), inset 0 -10px 22px rgba(2, 6, 23, 0.07), 0 8px 26px rgba(2, 6, 23, 0.1);
         }
         .gel-pill::before {
-          /* rim kromatik seperti gambar kedua */
           content: "";
           position: absolute;
           inset: 0;
-          border-radius: 0.8rem;
-          background: radial-gradient(60% 120% at 10% 10%, rgba(59, 130, 246, 0.28), transparent 55%), radial-gradient(70% 140% at 90% 20%, rgba(244, 63, 94, 0.25), transparent 60%), radial-gradient(60% 140% at 50% 100%, rgba(16, 185, 129, 0.22), transparent 60%);
+          border-radius: 0.9rem;
+          /* rim kromatik */
+          background: radial-gradient(60% 130% at 12% 16%, rgba(59, 130, 246, 0.34), transparent 60%), radial-gradient(70% 150% at 88% 18%, rgba(244, 63, 94, 0.3), transparent 62%), radial-gradient(80% 150% at 50% 100%, rgba(16, 185, 129, 0.26), transparent 65%);
           mix-blend-mode: screen;
-          pointer-events: none;
-          opacity: 0.6;
+          opacity: 0.7;
           filter: saturate(130%) blur(0.2px);
+          pointer-events: none;
         }
         .gel-pill::after {
-          /* inner cut seperti 'U' pill (ref foto kedua) */
+          /* inner cut 'U' tipis agar terlihat tebal dan bening */
           content: "";
           position: absolute;
           inset: 3px;
-          border-radius: 0.65rem;
-          background: linear-gradient(180deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.03));
+          border-radius: 0.7rem;
+          background: linear-gradient(180deg, rgba(255, 255, 255, 0.14), rgba(255, 255, 255, 0.04));
           -webkit-mask: radial-gradient(12px 12px at 14px 50%, transparent 49%, #000 51%) left / calc(50% - 10px) 100% no-repeat, radial-gradient(12px 12px at calc(100% - 14px) 50%, transparent 49%, #000 51%) right / calc(50% - 10px) 100% no-repeat, linear-gradient(#000, #000);
           mask: radial-gradient(12px 12px at 14px 50%, transparent 49%, #000 51%) left / calc(50% - 10px) 100% no-repeat, radial-gradient(12px 12px at calc(100% - 14px) 50%, transparent 49%, #000 51%) right / calc(50% - 10px) 100% no-repeat, linear-gradient(#000, #000);
+          opacity: 0.5;
           pointer-events: none;
-          opacity: 0.45;
         }
          `
       }</style>
