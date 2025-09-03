@@ -4,7 +4,7 @@
 import { useEffect, useRef, useState } from "react";
 
 /**
- * Melacak ID section dominan di viewport (highlight anchor nav).
+ * Melacak ID section dominan di viewport (untuk highlight anchor nav).
  * Reset otomatis saat bukan di "/" agar highlight tidak nyangkut.
  */
 export function useActiveSection(
@@ -31,11 +31,7 @@ export function useActiveSection(
   useEffect(() => {
     if (!enabled) return;
 
-    let cancelled = false;
-
     const boot = () => {
-      if (cancelled) return;
-
       const sections = ids
         .map((id) => document.getElementById(id))
         .filter((el): el is HTMLElement => !!el);
@@ -66,7 +62,6 @@ export function useActiveSection(
     boot();
 
     return () => {
-      cancelled = true;
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
       if (obsRef.current) {
         obsRef.current.disconnect();
