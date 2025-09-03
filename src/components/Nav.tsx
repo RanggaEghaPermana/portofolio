@@ -173,7 +173,7 @@ export default function Nav() {
           pointer-events: none;
           opacity: 0.45;
         }
-         `;
+         `
       }</style>
   </header>);
 }
