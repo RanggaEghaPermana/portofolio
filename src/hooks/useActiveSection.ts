@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from "react";
 
 /**
  * Melacak ID section yang dominan di viewport (untuk highlight nav anchor).
- * Aman dipakai di halaman mana pun:
+ * Aman dipakai di halaman apa pun:
  *  - Ketika enabled=false (bukan di "/") → state di-reset & tidak observe apa pun.
  *  - Ketika kembali ke "/" → re-init, nunggu elemen section muncul dulu.
  */
