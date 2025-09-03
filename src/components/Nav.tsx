@@ -5,7 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { m } from "framer-motion";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import { useLensSnapshot } from "@/hooks/useLensSnapshot";
+import { useLensCanvas } from "@/hooks/useLensCanvas";
 
 type NavItem = { href: string; label: string };
 
@@ -23,7 +23,7 @@ const navLinks: NavItem[] = [
 export default function Nav() {
   const pathname = usePathname();
 
-  // hover & active (aktif rute + hash home)
+  // Aktif berdasar path + hash (stabil, tanpa observer)
   const [hovered, setHovered] = useState<string | null>(null);
   const [activeLabel, setActiveLabel] = useState<string>("Home");
 
@@ -55,9 +55,10 @@ export default function Nav() {
     }
   }, [pathname]);
 
-  // ===================== LIQUID PILL MEASURING =====================
+  // ===================== MEASURE LIQUID PILL =====================
   const listRef = useRef<HTMLUListElement>(null);
   const shellRef = useRef<HTMLDivElement>(null);
+  const lensSlotRef = useRef<HTMLSpanElement>(null);
   const itemRefs = useRef<Record<string, HTMLLIElement | null>>({});
   const currentLabel = (hovered ?? activeLabel ?? navLinks[0].label) as string;
 
@@ -82,13 +83,9 @@ export default function Nav() {
     };
     setPill(next);
 
-    // metrik buat lens/caustics
+    // Sinkronkan posisi snapshot terhadap scroll
     const cx = next.left + next.width / 2;
-    const cy = next.top + next.height / 2;
     shellRef.current?.style.setProperty("--pill-cx", `${cx.toFixed(2)}px`);
-    shellRef.current?.style.setProperty("--pill-cy", `${cy.toFixed(2)}px`);
-    shellRef.current?.style.setProperty("--hole-rx", `${(next.width * 0.62).toFixed(2)}px`);
-    shellRef.current?.style.setProperty("--hole-ry", `${(next.height * 0.90).toFixed(2)}px`);
   };
 
   useLayoutEffect(() => {
@@ -104,7 +101,7 @@ export default function Nav() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentLabel, pathname]);
 
-  // track scroll → selaraskan posisi gambar snapshot (biar “tembus” beneran)
+  // Geser snapshot mengikuti scroll (cukup update CSS var)
   useEffect(() => {
     const el = shellRef.current;
     if (!el) return;
@@ -120,31 +117,31 @@ export default function Nav() {
       if (raf) cancelAnimationFrame(raf);
       raf = requestAnimationFrame(put);
     };
-    const onResize = onScroll;
-
     put();
     window.addEventListener("scroll", onScroll, { passive: true });
-    window.addEventListener("resize", onResize);
-    window.addEventListener("orientationchange", onResize);
-
+    window.addEventListener("resize", onScroll);
+    window.addEventListener("orientationchange", onScroll);
     return () => {
       window.removeEventListener("scroll", onScroll);
-      window.removeEventListener("resize", onResize);
-      window.removeEventListener("orientationchange", onResize);
+      window.removeEventListener("resize", onScroll);
+      window.removeEventListener("orientationchange", onScroll);
       if (raf) cancelAnimationFrame(raf);
     };
   }, []);
 
+  // Mount canvas snapshot ke dalam pill
+  useLensCanvas(lensSlotRef);
+
   const linkBase =
     "relative z-10 rounded-xl px-3 py-2 text-slate-700 hover:text-slate-900 dark:text-slate-300 dark:hover:text-slate-100";
 
-  const squish = Math.min(0.28, Math.abs(dx) / 160); // makin cepat, makin cair
-  const lensImg = useLensSnapshot();
+  // Semakin cepat perpindahan, makin “cair”
+  const squish = Math.min(0.28, Math.abs(dx) / 160);
 
   return (
     <header className="sticky top-0 z-40 w-full">
       <div className="mx-auto max-w-6xl px-4 pt-4">
-        {/* Shell transparan total (tidak ada blur), cuma border & highlight tipis */}
+        {/* Shell super bening: NO blur, NO tint */}
         <div
           ref={shellRef}
           className="rounded-2xl border border-white/60 bg-transparent dark:border-white/15"
@@ -162,7 +159,7 @@ export default function Nav() {
             </Link>
 
             <ul ref={listRef} className="relative flex items-center gap-2 text-sm">
-              {/* LIQUID PILL: ring bening + “lensa” tajam di dalam (no blur) */}
+              {/* LIQUID PILL: ring bening + LENS tajam (refraksi ringan) */}
               <m.span
                 key="liquid-pill"
                 className="absolute -z-0"
@@ -183,31 +180,19 @@ export default function Nav() {
                   overflow: "hidden",
                 }}
               >
-                {/* Layer refraksi (tajam), efek tergantung konten yang dilewati */}
-                {lensImg && (
-                  <span
-                    className="pointer-events-none block h-full w-full"
-                    style={{
-                      borderRadius: 999,
-                      backgroundImage: `url(${lensImg})`,
-                      backgroundRepeat: "no-repeat",
-                      backgroundSize: "var(--bg-w) var(--bg-h)",
-                      backgroundPosition: "var(--bg-x) var(--bg-y)",
-                      // Pembiasan ringan → beri magnify & sedikit shear sesuai arah gerak
-                      transform: `scale(${1.015 + Math.min(0.015, Math.abs(dx) / 1200)}) skewX(${(dx / 520).toFixed(3)}rad)`,
-                      // “kurva kaca” – bagian pinggir sedikit gelap agar terlihat menekuk
-                      WebkitMask:
-                        "radial-gradient(120% 160% at 50% 50%, #000 62%, rgba(0,0,0,0.4) 82%, rgba(0,0,0,0.0) 100%)",
-                      mask:
-                        "radial-gradient(120% 160% at 50% 50%, #000 62%, rgba(0,0,0,0.4) 82%, rgba(0,0,0,0.0) 100%)",
-                      // highlight tipis atas
-                      boxShadow: "inset 0 1px 0 rgba(255,255,255,0.9)",
-                      // sedikit kontras biar “mirror” terasa (tanpa blur)
-                      filter: "contrast(1.06) brightness(1.04) saturate(1.02)",
-                      mixBlendMode: "normal",
-                    }}
-                  />
-                )}
+                {/* Slot tempat <canvas> snapshot dimount oleh hook */}
+                <span
+                  ref={lensSlotRef}
+                  className="pointer-events-none block h-full w-full"
+                  style={{
+                    borderRadius: 999,
+                    // Kurva kaca: pinggir sedikit gelap agar terasa menekuk
+                    WebkitMask:
+                      "radial-gradient(120% 160% at 50% 50%, #000 62%, rgba(0,0,0,0.4) 82%, rgba(0,0,0,0.0) 100%)",
+                    mask:
+                      "radial-gradient(120% 160% at 50% 50%, #000 62%, rgba(0,0,0,0.4) 82%, rgba(0,0,0,0.0) 100%)",
+                  }}
+                />
               </m.span>
 
               {navLinks.map((l) => (
@@ -230,6 +215,19 @@ export default function Nav() {
           </nav>
         </div>
       </div>
+
+      {/* Styling global tipis agar lensa terasa “air” (tanpa blur) */}
+      <style jsx global>{`
+        /* Geser keseluruhan canvas sesuai scroll */
+        .lens-canvas {
+          transform:
+            translate(var(--bg-x), var(--bg-y))
+            scale(calc(1.015 + min(0.015, (abs(var(--dx, 0)) / 1200))))
+            skewX(calc(var(--dx, 0) / 520));
+          transform-origin: center;
+          filter: contrast(1.06) brightness(1.04) saturate(1.02);
+        }
+      `}</style>
     </header>
   );
 }
