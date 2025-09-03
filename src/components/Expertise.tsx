@@ -8,17 +8,18 @@ import { expertise, type Depth, type ExpertiseCategory, type ExpertiseItem } fro
 import { Reveal } from '@/components/Reveal';
 
 type ViewMode = 'grid' | 'list';
+type FilterDepth = 'All' | Depth;
 
 const DEPTHS: Depth[] = ['Dasar', 'Menengah', 'Lanjut'];
 
 function depthColor(d: Depth) {
   switch (d) {
     case 'Lanjut':
-      return 'bg-emerald-100 text-emerald-800 border-emerald-300/50 dark:bg-emerald-800/60 dark:text-emerald-100 dark:border-emerald-700/50';
+      return 'border-emerald-300/60 bg-emerald-50 text-emerald-700 dark:border-emerald-600/60 dark:bg-emerald-900/30 dark:text-emerald-200';
     case 'Menengah':
-      return 'bg-indigo-100 text-indigo-800 border-indigo-300/50 dark:bg-indigo-800/60 dark:text-indigo-100 dark:border-indigo-700/50';
+      return 'border-indigo-300/60 bg-indigo-50 text-indigo-700 dark:border-indigo-600/60 dark:bg-indigo-900/30 dark:text-indigo-200';
     default:
-      return 'bg-slate-100 text-slate-800 border-slate-300/50 dark:bg-slate-800/60 dark:text-slate-100 dark:border-slate-700/50';
+      return 'border-slate-300/60 bg-slate-50 text-slate-700 dark:border-slate-600/60 dark:bg-slate-900/30 dark:text-slate-200';
   }
 }
 
@@ -26,14 +27,30 @@ function depthPercent(d: Depth) {
   return d === 'Dasar' ? 34 : d === 'Menengah' ? 67 : 100;
 }
 
+/** Donut ring dengan chip % agar kontras di light/dark */
 function LevelRing({ depth }: { depth: Depth }) {
   const p = depthPercent(depth);
   const angle = Math.round((p / 100) * 360);
-  const conic = `conic-gradient(currentColor ${angle}deg, rgba(0,0,0,0.08) ${angle}deg 360deg)`;
+  const trackLight = 'rgba(0,0,0,0.10)';
+  const trackDark = 'rgba(255,255,255,0.18)';
+  const conic = `conic-gradient(currentColor ${angle}deg, ${trackLight} ${angle}deg 360deg)`;
+
   return (
-    <div className="relative inline-grid place-items-center text-slate-900 dark:text-white" aria-label={`Level ${depth}`}>
-      <div className="h-8 w-8 rounded-full" style={{ background: conic }} />
-      <div className="absolute text-[10px] font-semibold">{p}%</div>
+    <div className="relative inline-grid h-10 w-10 place-items-center text-slate-900 dark:text-white" aria-label={`Level ${depth}`}>
+      <div className="h-10 w-10 rounded-full" style={{ background: conic }} />
+      <div className="absolute h-6 w-6 rounded-full bg-white dark:bg-slate-950" />
+      <div className="pointer-events-none absolute inset-0 grid place-items-center">
+        <span className="rounded px-1 text-[10px] font-semibold leading-none text-slate-900 shadow-sm ring-1 ring-black/5 dark:bg-slate-900/80 dark:text-white dark:ring-white/10 bg-white/90">
+          {p}%
+        </span>
+      </div>
+      <style jsx>{`
+        @media (prefers-color-scheme: dark) {
+          div[aria-label^="Level"] > div:first-child {
+            background: conic-gradient(currentColor ${angle}deg, ${trackDark} ${angle}deg 360deg);
+          }
+        }
+      `}</style>
     </div>
   );
 }
@@ -50,35 +67,43 @@ function highlight(text: string, term: string) {
   if (!term) return text;
   const idx = text.toLowerCase().indexOf(term.toLowerCase());
   if (idx === -1) return text;
+  const before = text.slice(0, idx);
+  const hit = text.slice(idx, idx + term.length);
+  const after = text.slice(idx + term.length);
   return (
     <>
-      {text.slice(0, idx)}
-      <mark className="rounded px-0.5 py-[1px] bg-yellow-200/70 dark:bg-yellow-500/30">{text.slice(idx, idx + term.length)}</mark>
-      {text.slice(idx + term.length)}
+      {before}
+      <mark className="bg-yellow-200/70 px-0.5 dark:bg-amber-400/30">{hit}</mark>
+      {after}
     </>
   );
 }
 
 export default function Expertise() {
-  const reduce = useReducedMotion();
-  const [query, setQuery] = useState('');
-  const [filterDepth, setFilterDepth] = useState<Depth | 'All'>('All');
   const [view, setView] = useState<ViewMode>('grid');
+  const [query, setQuery] = useState('');
+  const [filterDepth, setFilterDepth] = useState<FilterDepth>('All');
+  const reduce = useReducedMotion();
 
+  // Flatten & helper
   const flat = useMemo(() => {
-    return expertise.flatMap(cat => cat.items.map(it => ({ cat: cat.title, it })));
+    const res: { cat: string; it: ExpertiseItem }[] = [];
+    for (const c of expertise) for (const it of c.items) res.push({ cat: c.title, it });
+    return res;
   }, []);
 
-  const filtered = useMemo(() => {
-    const term = query.trim().toLowerCase();
-    const match = (it: ExpertiseItem) =>
-      (!term ||
-        it.name.toLowerCase().includes(term) ||
-        it.bullets.some(b => b.toLowerCase().includes(term)) ||
-        it.tools?.some(t => t.toLowerCase().includes(term)) ||
-        it.related?.some(r => r.toLowerCase().includes(term))) &&
-      (filterDepth === 'All' || it.depth === filterDepth);
+  const match = (it: ExpertiseItem) => {
+    const q = query.trim().toLowerCase();
+    const passDepth = filterDepth === 'All' ? true : it.depth === filterDepth;
+    if (!q) return passDepth;
+    const hay = (s: string | undefined) => (s ?? '').toLowerCase();
+    const inName = hay(it.name).includes(q);
+    const inBullets = it.bullets?.some((b) => hay(b).includes(q));
+    const inTools = it.tools?.some((t) => hay(t).includes(q));
+    return passDepth && (inName || inBullets || inTools);
+  };
 
+  const filtered = useMemo<ExpertiseCategory[]>(() => {
     const groups: ExpertiseCategory[] = [];
     for (const cat of expertise) {
       const items = cat.items.filter(match);
@@ -93,15 +118,20 @@ export default function Expertise() {
     return counts;
   }, [flat]);
 
+  // Jarak dari navbar sedikit dirapatkan (dari pt-24 → pt-12/md:pt-14)
   return (
-    <section className="mx-auto max-w-6xl px-6 pb-24 pt-24">
+    <section className="mx-auto max-w-6xl px-6 pb-24 pt-12 md:pt-14">
       <Reveal>
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <h2 className="text-2xl font-semibold">Kompetensi</h2>
           <div className="flex flex-wrap items-center gap-2">
             <button
               onClick={() => setView('grid')}
-              className={`inline-flex items-center gap-2 rounded-xl border px-3 py-1.5 text-sm ${view === 'grid' ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900' : 'border-slate-300 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800'}`}
+              className={`inline-flex items-center gap-2 rounded-lg border px-3 py-1.5 text-sm ${
+                view === 'grid'
+                  ? 'border-slate-300 bg-white text-slate-900 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100'
+                  : 'border-slate-200 text-slate-600 dark:border-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'
+              }`}
               aria-pressed={view === 'grid'}
               title="Tampilan Grid"
             >
@@ -109,7 +139,11 @@ export default function Expertise() {
             </button>
             <button
               onClick={() => setView('list')}
-              className={`inline-flex items-center gap-2 rounded-xl border px-3 py-1.5 text-sm ${view === 'list' ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900' : 'border-slate-300 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800'}`}
+              className={`inline-flex items-center gap-2 rounded-lg border px-3 py-1.5 text-sm ${
+                view === 'list'
+                  ? 'border-slate-300 bg-white text-slate-900 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100'
+                  : 'border-slate-200 text-slate-600 dark:border-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'
+              }`}
               aria-pressed={view === 'list'}
               title="Tampilan Daftar"
             >
@@ -127,28 +161,37 @@ export default function Expertise() {
             <input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Cari skill, tools, atau keyword…"
-              className="w-full rounded-xl border border-slate-300 bg-white px-9 py-2.5 text-sm outline-none ring-0 placeholder:text-slate-400 focus:border-slate-400 focus:bg-white/90 dark:border-slate-700 dark:bg-slate-900 dark:focus:border-slate-600"
+              placeholder="Cari kompetensi, tools, atau poin pengalaman..."
+              className="w-full rounded-xl border border-slate-200 bg-white pl-9 pr-3 py-2 text-sm text-slate-900 outline-none ring-2 ring-transparent transition focus:border-slate-300 focus:ring-slate-200 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:focus:border-slate-600 dark:focus:ring-slate-800"
             />
           </div>
         </div>
-        <div className="flex items-center gap-2">
-          <span className="inline-flex items-center gap-2 rounded-xl border border-slate-300 px-3 py-2 text-sm text-slate-600 dark:border-slate-700 dark:text-slate-300">
+
+        <div className="rounded-xl border border-slate-200/60 bg-white p-3 text-sm dark:border-slate-800/60 dark:bg-slate-900">
+          <span className="mb-2 inline-flex items-center gap-2 font-medium text-slate-700 dark:text-slate-200">
             <SlidersHorizontal className="h-4 w-4" />
             Filter tingkat
           </span>
           <div className="flex flex-wrap gap-2">
             <button
               onClick={() => setFilterDepth('All')}
-              className={`rounded-full border px-3 py-1.5 text-xs ${filterDepth === 'All' ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900' : 'border-slate-300 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800'}`}
+              className={`rounded-full border px-3 py-1.5 text-xs ${
+                filterDepth === 'All'
+                  ? 'border-slate-300 bg-white text-slate-900 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100'
+                  : 'border-slate-200 text-slate-600 dark:border-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'
+              }`}
             >
               Semua
             </button>
-            {DEPTHS.map(d => (
+            {DEPTHS.map((d) => (
               <button
                 key={d}
                 onClick={() => setFilterDepth(d)}
-                className={`rounded-full border px-3 py-1.5 text-xs ${filterDepth === d ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900' : 'border-slate-300 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800'}`}
+                className={`rounded-full border px-3 py-1.5 text-xs ${
+                  filterDepth === d
+                    ? 'border-slate-300 bg-white text-slate-900 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100'
+                    : 'border-slate-200 text-slate-600 dark:border-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'
+                }`}
               >
                 {d} <span className="ml-1 text-[10px] text-slate-500">({countsByDepth[d]})</span>
               </button>
@@ -164,11 +207,7 @@ export default function Expertise() {
             <m.section
               key={cat.title}
               layout
-              initial={reduce ? { opacity: 1, y: 0 } : { opacity: 0, y: 12 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: 8 }}
-              transition={reduce ? { duration: 0 } : { duration: 0.35, ease: 'easeOut', delay: i * 0.02 }}
-              className="will-change-[opacity,transform] transform-gpu"
+              transition={{ type: 'spring', stiffness: 120, damping: 14 }}
             >
               <Reveal delay={i * 0.04}>
                 <div className="flex items-center justify-between">
@@ -177,23 +216,24 @@ export default function Expertise() {
               </Reveal>
 
               {view === 'grid' ? (
-                <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                <div className="mt-4 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
                   {cat.items.map((it) => (
                     <m.article
                       key={it.name}
                       layout
                       whileHover={reduce ? undefined : { y: -3 }}
-                      className="group rounded-2xl border border-slate-200 bg-white/80 p-4 shadow-sm ring-1 ring-transparent transition-[box-shadow,transform] will-change-[transform] hover:shadow-md dark:border-slate-800 dark:bg-slate-900/80"
+                      className="group rounded-2xl border border-slate-200 bg-white p-4 shadow-sm ring-1 ring-black/5 transition-shadow hover:shadow-md dark:border-slate-800 dark:bg-slate-900/80 dark:ring-white/5"
                     >
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
-                          <h4 className="truncate font-medium">
-                            {highlight(it.name, query)}
-                          </h4>
+                          <h4 className="truncate font-medium">{highlight(it.name, query)}</h4>
                           <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-slate-600 dark:text-slate-300">
                             <DepthBadge d={it.depth} />
-                            {it.tools?.slice(0, 3).map(t => (
-                              <span key={t} className="rounded-full border border-slate-200 px-2 py-0.5 text-[11px] text-slate-500 dark:border-slate-700 dark:text-slate-400">
+                            {it.tools?.slice(0, 3).map((t) => (
+                              <span
+                                key={t}
+                                className="rounded-full border border-slate-200 px-2 py-0.5 text-[11px] text-slate-500 dark:border-slate-700 dark:text-slate-400"
+                              >
                                 {highlight(t, query)}
                               </span>
                             ))}
@@ -211,18 +251,19 @@ export default function Expertise() {
                   ))}
                 </div>
               ) : (
-                <div className="mt-4 divide-y divide-slate-200 overflow-hidden rounded-2xl border border-slate-200 bg-white dark:divide-slate-800 dark:border-slate-800 dark:bg-slate-900">
+                <div className="mt-4 divide-y divide-slate-200 overflow-hidden rounded-2xl border border-slate-200 bg-white dark:divide-slate-800 dark:border-slate-800 dark:bg-slate-900/60">
                   {cat.items.map((it) => (
-                    <details key={it.name} className="group open:bg-slate-50/40 dark:open:bg-slate-800/30">
-                      <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3">
+                    <details key={it.name} className="group">
+                      <summary className="flex cursor-pointer items-start justify-between gap-3 px-4 py-3">
                         <div className="min-w-0">
-                          <h4 className="truncate font-medium">
-                            {highlight(it.name, query)}
-                          </h4>
+                          <div className="font-medium">{highlight(it.name, query)}</div>
                           <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-slate-600 dark:text-slate-300">
                             <DepthBadge d={it.depth} />
-                            {it.tools?.slice(0, 4).map(t => (
-                              <span key={t} className="rounded-full border border-slate-200 px-2 py-0.5 text-[11px] text-slate-500 dark:border-slate-700 dark:text-slate-400">
+                            {it.tools?.slice(0, 4).map((t) => (
+                              <span
+                                key={t}
+                                className="rounded-full border border-slate-200 px-2 py-0.5 text-[11px] text-slate-500 dark:border-slate-700 dark:text-slate-400"
+                              >
                                 {highlight(t, query)}
                               </span>
                             ))}
@@ -237,10 +278,12 @@ export default function Expertise() {
                           ))}
                         </ul>
                         {it.related?.length ? (
-                          <div className="mt-3 flex flex-wrap gap-2">
-                            {it.related.map(r => (
-                              <span key={r} className="rounded-full border border-slate-200 px-2 py-0.5 text-[11px] text-slate-500 dark:border-slate-700 dark:text-slate-400">
-                                {highlight(r, query)}
+                          <div className="mt-3 text-xs text-slate-500 dark:text-slate-400">
+                            Terkait:{" "}
+                            {it.related.map((r, idx) => (
+                              <span key={r}>
+                                {r}
+                                {idx < (it.related?.length ?? 0) - 1 ? ", " : ""}
                               </span>
                             ))}
                           </div>
@@ -255,7 +298,7 @@ export default function Expertise() {
         </AnimatePresence>
       </div>
 
-      <div className="mt-10 rounded-xl border border-amber-300/50 bg-amber-50 p-4 text-amber-800 dark:border-amber-700/50 dark:bg-amber-900/30 dark:text-amber-100">
+      <div className="mt-10 rounded-xl border border-amber-300/50 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-700/50 dark:bg-amber-900/30 dark:text-amber-100">
         Catatan: aktivitas pentest selalu dilakukan <strong>dengan izin</strong> dan pada lingkungan yang tepat (staging/sandbox).
       </div>
     </section>
