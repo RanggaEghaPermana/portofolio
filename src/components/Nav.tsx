@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { m } from "framer-motion";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useLensCanvas } from "@/hooks/useLensCanvas";
 
 type NavItem = { href: string; label: string };
 
@@ -22,11 +23,10 @@ const navLinks: NavItem[] = [
 export default function Nav() {
   const pathname = usePathname();
 
-  // state aktif + hover
+  // Aktif berdasar path + hash (stabil, tanpa observer)
   const [hovered, setHovered] = useState<string | null>(null);
   const [activeLabel, setActiveLabel] = useState<string>("Home");
 
-  // sinkronkan aktif berdasar path/hash (tanpa observer, biar stabil)
   useEffect(() => {
     const mapHash: Record<string, string> = {
       projects: "Projects",
@@ -55,12 +55,12 @@ export default function Nav() {
     }
   }, [pathname]);
 
-  // --- LIQUID PILL MEASURING (tanpa blur) ---
+  // ===================== MEASURE LIQUID PILL =====================
   const listRef = useRef<HTMLUListElement>(null);
   const shellRef = useRef<HTMLDivElement>(null);
+  const lensSlotRef = useRef<HTMLSpanElement>(null);
   const itemRefs = useRef<Record<string, HTMLLIElement | null>>({});
-
-  const currentLabel = hovered ?? activeLabel ?? navLinks[0].label;
+  const currentLabel = (hovered ?? activeLabel ?? navLinks[0].label) as string;
 
   const [pill, setPill] = useState({ left: 0, top: 0, width: 0, height: 0 });
   const [dx, setDx] = useState(0); // delta gerak → squish (pantul)
@@ -83,7 +83,7 @@ export default function Nav() {
     };
     setPill(next);
 
-    // titik pusat pill (untuk highlight shell seadanya; masih transparan)
+    // Sinkronkan posisi snapshot terhadap scroll
     const cx = next.left + next.width / 2;
     shellRef.current?.style.setProperty("--pill-cx", `${cx.toFixed(2)}px`);
   };
@@ -101,9 +101,41 @@ export default function Nav() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentLabel, pathname]);
 
+  // Geser snapshot mengikuti scroll (cukup update CSS var)
+  useEffect(() => {
+    const el = shellRef.current;
+    if (!el) return;
+    let raf: number | null = null;
+
+    const put = () => {
+      el.style.setProperty("--bg-x", `${-window.scrollX}px`);
+      el.style.setProperty("--bg-y", `${-window.scrollY}px`);
+      el.style.setProperty("--bg-w", `${document.documentElement.scrollWidth}px`);
+      el.style.setProperty("--bg-h", `${document.documentElement.scrollHeight}px`);
+    };
+    const onScroll = () => {
+      if (raf) cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(put);
+    };
+    put();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    window.addEventListener("resize", onScroll);
+    window.addEventListener("orientationchange", onScroll);
+    return () => {
+      window.removeEventListener("scroll", onScroll);
+      window.removeEventListener("resize", onScroll);
+      window.removeEventListener("orientationchange", onScroll);
+      if (raf) cancelAnimationFrame(raf);
+    };
+  }, []);
+
+  // Mount canvas snapshot ke dalam pill
+  useLensCanvas(lensSlotRef);
+
   const linkBase =
     "relative z-10 rounded-xl px-3 py-2 text-slate-700 hover:text-slate-900 dark:text-slate-300 dark:hover:text-slate-100";
 
+  // Semakin cepat perpindahan, makin “cair”
   const squish = Math.min(0.28, Math.abs(dx) / 160);
 
   return (
@@ -114,8 +146,9 @@ export default function Nav() {
           ref={shellRef}
           className="rounded-2xl border border-white/60 bg-transparent dark:border-white/15"
           style={{
-            boxShadow:
-              "inset 0 0 0.8px rgba(255,255,255,0.9), 0 10px 18px rgba(0,0,0,0.06)",
+            position: "relative",
+            overflow: "hidden",
+            boxShadow: "inset 0 0 0.8px rgba(255,255,255,0.9), 0 10px 18px rgba(0,0,0,0.06)",
           }}
         >
           <nav className="flex items-center justify-between px-4 py-3">
@@ -126,7 +159,7 @@ export default function Nav() {
             </Link>
 
             <ul ref={listRef} className="relative flex items-center gap-2 text-sm">
-              {/* PILL cair: murni transparan, cuma ring & highlight (tanpa blur) */}
+              {/* LIQUID PILL: ring bening + LENS tajam (refraksi ringan) */}
               <m.span
                 key="liquid-pill"
                 className="absolute -z-0"
@@ -138,39 +171,29 @@ export default function Nav() {
                   height: pill.height,
                   scaleX: 1 + squish,
                   scaleY: 1 - squish / 2,
-                  borderRadius: 14,
+                  borderRadius: 999,
                 }}
                 transition={{ type: "spring", stiffness: 950, damping: 20, mass: 0.5 }}
                 style={{
-                  // ring putih + inner highlight — tidak menutup isi di bawahnya
                   background: "transparent",
-                  boxShadow:
-                    "inset 0 0 0 1px rgba(255,255,255,0.95), 0 8px 16px rgba(0,0,0,0.06)",
-                  WebkitMask:
-                    "linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0)",
-                  WebkitMaskComposite: "destination-out" as any, // menjaga ring tetap mulus
+                  boxShadow: "inset 0 0 0 1px rgba(255,255,255,0.95), 0 8px 16px rgba(0,0,0,0.06)",
+                  overflow: "hidden",
                 }}
-              />
-              {/* Highlight tipis yang mengikuti posisi pill (tanpa menutupi) */}
-              <m.span
-                aria-hidden
-                className="pointer-events-none absolute -z-10"
-                initial={false}
-                animate={{
-                  left: Math.max(0, pill.left - 40),
-                  top: Math.max(0, pill.top - 10),
-                  width: pill.width + 80,
-                  height: pill.height + 20,
-                  borderRadius: 999,
-                  opacity: 0.55,
-                }}
-                transition={{ type: "tween", duration: 0.25 }}
-                style={{
-                  background:
-                    "radial-gradient(120% 160% at 50% 15%, rgba(255,255,255,0.35), rgba(255,255,255,0) 48%)",
-                  mixBlendMode: "screen",
-                }}
-              />
+              >
+                {/* Slot tempat <canvas> snapshot dimount oleh hook */}
+                <span
+                  ref={lensSlotRef}
+                  className="pointer-events-none block h-full w-full"
+                  style={{
+                    borderRadius: 999,
+                    // Kurva kaca: pinggir sedikit gelap agar terasa menekuk
+                    WebkitMask:
+                      "radial-gradient(120% 160% at 50% 50%, #000 62%, rgba(0,0,0,0.4) 82%, rgba(0,0,0,0.0) 100%)",
+                    mask:
+                      "radial-gradient(120% 160% at 50% 50%, #000 62%, rgba(0,0,0,0.4) 82%, rgba(0,0,0,0.0) 100%)",
+                  }}
+                />
+              </m.span>
 
               {navLinks.map((l) => (
                 <li
@@ -182,9 +205,7 @@ export default function Nav() {
                 >
                   <Link
                     href={l.href}
-                    className={`${linkBase} ${
-                      activeLabel === l.label ? "text-slate-900 dark:text-white" : ""
-                    }`}
+                    className={`${linkBase} ${activeLabel === l.label ? "text-slate-900 dark:text-white" : ""}`}
                   >
                     {l.label}
                   </Link>
@@ -195,22 +216,16 @@ export default function Nav() {
         </div>
       </div>
 
-      {/* Tambahan styling global super tipis agar tetap terasa 'kaca' tapi transparan */}
+      {/* Styling global tipis agar lensa terasa “air” (tanpa blur) */}
       <style jsx global>{`
-        /* garis highlight samar di shell — tetap tidak menutup konten */
-        .rounded-2xl::before {
-          content: "";
-          position: absolute;
-          inset: 0;
-          border-radius: 1rem;
-          pointer-events: none;
-          background: radial-gradient(
-            120% 200% at var(--pill-cx, 50%) 6%,
-            rgba(255, 255, 255, 0.12),
-            transparent 45%
-          );
-          mix-blend-mode: screen;
-          opacity: 0.7;
+        /* Geser keseluruhan canvas sesuai scroll */
+        .lens-canvas {
+          transform:
+            translate(var(--bg-x), var(--bg-y))
+            scale(calc(1.015 + min(0.015, (abs(var(--dx, 0)) / 1200))))
+            skewX(calc(var(--dx, 0) / 520));
+          transform-origin: center;
+          filter: contrast(1.06) brightness(1.04) saturate(1.02);
         }
       `}</style>
     </header>
