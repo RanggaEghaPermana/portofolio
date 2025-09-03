@@ -1,4 +1,3 @@
-// FILE: src/components/Timeline.tsx
 "use client";
 import {experiences} from "@/data/experiences";
 import {Reveal} from "@/components/Reveal";
@@ -17,9 +16,9 @@ export default function TimelineSection() {
         {
           experiences.map((e, i) => (<Reveal key={e.title + i} delay={i * 0.06}>
             <li className="relative pl-12">
-              {/* Titik aksen (Indigo) */}
-              <span className="absolute left-[9px] top-4 -translate-x-1/2 rounded-full bg-white p-1 ring-2 ring-indigo-600/25 dark:bg-slate-900" aria-hidden="aria-hidden">
-                <span className="block h-3.5 w-3.5 rounded-full bg-indigo-600"/>
+              {/* Titik aksen (Black) */}
+              <span className="absolute left-[9px] top-4 -translate-x-1/2 rounded-full bg-white p-1 ring-2 ring-black/25 dark:bg-slate-900" aria-hidden="aria-hidden">
+                <span className="block h-3.5 w-3.5 rounded-full bg-black"/>
               </span>
 
               {/* Kartu konten */}
