@@ -4,13 +4,17 @@
 import { useEffect, useRef, useState } from "react";
 
 /**
- * Ambil snapshot halaman sebagai dataURL (tanpa blur).
- * Sinkron dengan scroll agar isi “di bawah” lensa terlihat tajam dan sesuai.
- * Aman untuk SSR (lazy import html2canvas di client).
+ * Mengambil "cuplikan" halaman (viewport/body) sebagai dataURL untuk dipakai
+ * sebagai background di dalam kapsul (tanpa blur). Diselaraskan dengan scroll.
+ *
+ * Catatan:
+ *  - Lazy import 'html2canvas'. Jika belum terpasang, fallback => null (tetap jalan).
+ *  - Snapshot saat mount + dibounce saat scroll/resize (tidak berat).
  */
 export function useLensSnapshot() {
   const [img, setImg] = useState<string | null>(null);
   const busy = useRef(false);
+  const last = useRef(0);
 
   async function snap() {
     if (busy.current) return;
@@ -18,7 +22,7 @@ export function useLensSnapshot() {
     try {
       const mod = await import("html2canvas").catch(() => null as any);
       const html2canvas = mod?.default;
-      if (!html2canvas || typeof window === "undefined") {
+      if (!html2canvas || typeof window === "undefined" || !document.body) {
         setImg(null);
         return;
       }
@@ -33,11 +37,12 @@ export function useLensSnapshot() {
       setImg(canvas.toDataURL("image/png", 0.85));
     } finally {
       busy.current = false;
+      last.current = Date.now();
     }
   }
 
   useEffect(() => {
-    snap(); // pertama
+    snap(); // initial
     let raf: number | null = null;
     let t: any;
 
@@ -45,7 +50,10 @@ export function useLensSnapshot() {
       if (raf) cancelAnimationFrame(raf);
       raf = requestAnimationFrame(() => {
         clearTimeout(t);
-        t = setTimeout(() => snap(), 150);
+        t = setTimeout(() => {
+          // re-snap setelah user berhenti scroll/resize 180ms
+          snap();
+        }, 180);
       });
     };
 
