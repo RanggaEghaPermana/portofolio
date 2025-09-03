@@ -23,7 +23,7 @@ const navLinks: NavItem[] = [
   }, {
     href: "/kompetensi",
     label: "Kompetensi"
-  }, { // tambah halaman terpisah
+  }, {
     href: "/#experience",
     label: "Experience"
   }, {
@@ -41,26 +41,29 @@ const navLinks: NavItem[] = [
 export default function Nav() {
   const pathname = usePathname();
 
-  // Panggil SELALU (tidak kondisional), aman di halaman non-home (no-op).
-  // Ikutkan 'home' supaya waktu balik ke intro, highlight pindah dari 'projects' ke 'home'.
-  const activeSection = useActiveSection(["home", "projects", "skills", "experience", "contact"]);
+  // SELALU dipanggil; aktif hanya ketika di halaman "/"
+  const activeSection = useActiveSection([
+    "home", "projects", "skills", "experience", "contact"
+  ], {
+    enabled: pathname === "/",
+    rootMargin: "-88px 0px -55% 0px"
+  });
 
-  // Aturan highlight:
-  // - Anchor (/#...) aktif kalau kita sedang di "/" dan section tsb yang paling terlihat.
-  // - "/" (Home) aktif kalau kita di "/" dan section aktif adalah "home" (intro) atau belum terdeteksi.
-  // - Halaman terpisah aktif berdasar pathname.
+  // Aturan aktif yang konsisten di semua kondisi
   const isActive = (href : string) => {
     if (href === "/") {
+      // Di home dan belum terdeteksi apa pun, atau sedang berada di #home → Home aktif
       return pathname === "/" && (!activeSection || activeSection === "home");
     }
     if (href.startsWith("/#")) {
       const id = href.split("#")[1];
       return pathname === "/" && activeSection === id;
     }
+    // Halaman terpisah (mis. /kompetensi)
     return pathname === href || (href !== "/" && pathname.startsWith(href));
   };
 
-  // Desain lama dipertahankan, cuma nambah kelas "active".
+  // Desain lama dipertahankan
   const base = "rounded-xl px-3 py-2 text-slate-700 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-slate-100";
   const activeCls = "bg-slate-100 text-slate-900 dark:bg-slate-800 dark:text-slate-100";
 
